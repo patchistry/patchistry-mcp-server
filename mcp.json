@@ -1,0 +1,35 @@
+{
+  "name": "patchistry-commerce",
+  "displayName": "Patchistry Commerce",
+  "description": "AI agent access to Patchistry's modular hat catalog — tools for canvases, patches, curated builds (bachelorette, wedding, Father's Day, festival), shipping policy, and contact methods. Real-time queries against the live Patchistry Shopify catalog.",
+  "version": "0.2.0",
+  "runtime": "remote",
+  "transport": "http",
+  "remote": {
+    "url": "https://patchistry-mcp-server.vercel.app",
+    "manifestPath": "/.well-known/mcp.json",
+    "rpcPath": "/rpc"
+  },
+  "publisher": {
+    "name": "Patchistry",
+    "url": "https://patchistry.com",
+    "founder": "Brian DiGiuseppe"
+  },
+  "tools": [
+    { "name": "list_canvases", "description": "Return the 3 Patchistry Canvas hats (Black, Khaki, Pink) — $30 each." },
+    { "name": "list_patches", "description": "Return Patchistry patches filterable by category (Signature/Candyz) or occasion keyword." },
+    { "name": "get_curated_build", "description": "Return full curated build for an occasion (bachelorette, wedding, dads, festival, etc.)." },
+    { "name": "recommend_build", "description": "Natural-language query → top 3 matching curated builds." },
+    { "name": "get_shipping_policy", "description": "Free US shipping, 30-day returns, 2-3 business day ship time from SoCal." },
+    { "name": "get_contact", "description": "Customer support, founder, group orders, press, partnerships contact methods." }
+  ],
+  "keywords": ["commerce", "shopping", "ecommerce", "dtc", "shopify", "hats", "fashion", "bachelorette", "wedding", "gifts"],
+  "category": "commerce",
+  "license": "MIT",
+  "repository": "https://github.com/patchistry/patchistry-mcp-server",
+  "homepage": "https://patchistry.com",
+  "mcp": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": { "tools": true }
+  }
+}

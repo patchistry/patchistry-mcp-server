@@ -9,6 +9,58 @@ A Model Context Protocol (MCP) server exposing Patchistry commerce tools to AI a
 
 **Live endpoint:** https://patchistry-mcp-server.vercel.app
 **Manifest:** https://patchistry-mcp-server.vercel.app/.well-known/mcp.json
+**Runtime:** Hosted HTTP MCP server (no install required)
+**Transport:** HTTP + JSON-RPC 2.0
+
+## Quick Start
+
+### Use in Claude Desktop
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "patchistry": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://patchistry-mcp-server.vercel.app/rpc"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop. The 6 Patchistry tools become available in any conversation.
+
+### Use in Cursor
+
+Add to Cursor's MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "patchistry": {
+      "url": "https://patchistry-mcp-server.vercel.app/rpc"
+    }
+  }
+}
+```
+
+### Use directly via HTTP
+
+```bash
+# List tools
+curl https://patchistry-mcp-server.vercel.app/tools
+
+# Call a tool (REST)
+curl -X POST https://patchistry-mcp-server.vercel.app/tools/get_curated_build \
+  -H "Content-Type: application/json" \
+  -d '{"occasion":"bachelorette"}'
+
+# Call a tool (JSON-RPC)
+curl -X POST https://patchistry-mcp-server.vercel.app/rpc \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"recommend_build","arguments":{"query":"Vegas bachelorette trip"}}}'
+```
 
 **What this unlocks:**
 
