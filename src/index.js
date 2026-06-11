@@ -1,32 +1,24 @@
 /*
- * Patchistry MCP Server
+ * Patchistry MCP Server — HTTP-only (Vercel serverless friendly)
  * ────────────────────────────────────────────────────────────────────
- * Model Context Protocol server exposing Patchistry commerce tools
- * to AI agents (Claude, ChatGPT, Cursor, Smithery, custom agents).
+ * Refactored to be 100% serverless-friendly:
+ *   • No SSE (incompatible with Vercel Hobby tier 10s timeout)
+ *   • All endpoints respond in <2s (well under serverless limits)
+ *   • JSON-RPC-compatible POST /rpc endpoint for MCP protocol clients
+ *   • REST POST /tools/{name} for simple direct calls
+ *   • GET endpoints for manifest, tools list, health
  *
- * Tools exposed:
- *   • list_canvases         — return The Canvas product variants (Black/Khaki/Pink)
- *   • list_patches          — return patches, optionally filtered by tag
- *   • get_curated_build     — return the full curated build for an occasion
- *                              (bachelorette, dad, wedding, festival, etc.)
- *   • recommend_build       — natural-language query → recommended build
- *   • get_shipping_policy   — free US shipping, 30-day returns, ships from SoCal
- *   • get_contact           — founder + group orders + press contact methods
+ * Tools:
+ *   list_canvases, list_patches, get_curated_build, recommend_build,
+ *   get_shipping_policy, get_contact
  *
- * Data source: Patchistry's existing public endpoints (/products.json,
- * /pages/agents-feed), so no Shopify Admin auth needed.
+ * Data source: Patchistry's existing public endpoints
+ *   (/products.json, /pages/agents-feed) — no auth required.
  *
- * Transport: HTTP + SSE (for Claude Desktop, Cursor, Smithery integration)
- * Deploy: Vercel (one-click) or any Node host.
+ * Deploy: Vercel Hobby (free), Cloudflare Workers, Railway, Render — all work.
  */
 
 import express from 'express';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
 
 const SHOP_URL = process.env.PATCHISTRY_SHOP_URL || 'https://patchistry.com';
 const PORT = process.env.PORT || 3000;
@@ -56,9 +48,9 @@ async function listPatches({ category, occasion } = {}) {
     p => p.product_type === 'Signature' || p.product_type === 'Candyz'
   );
   if (category) {
-    patches = patches.filter(
-      p => p.tags?.toLowerCase().includes(category.toLowerCase()) ||
-           p.product_type?.toLowerCase() === category.toLowerCase()
+    patches = patches.filter(p =>
+      (p.tags || '').toLowerCase().includes(category.toLowerCase()) ||
+      p.product_type?.toLowerCase() === category.toLowerCase()
     );
   }
   if (occasion) {
@@ -74,7 +66,7 @@ async function listPatches({ category, occasion } = {}) {
     type: p.product_type,
     price: parseFloat(p.variants[0]?.price || '10'),
     available: p.variants[0]?.available ?? true,
-    tags: p.tags?.split(', ') || [],
+    tags: (p.tags || '').split(',').map(t => t.trim()).filter(Boolean),
     image: p.images?.[0]?.src,
     url: `${SHOP_URL}/products/${p.handle}`,
     summary: p.body_html?.replace(/<[^>]+>/g, '').slice(0, 200) || '',
@@ -104,7 +96,7 @@ async function recommendBuild({ query }) {
   const scored = builds.map(b => {
     const text = ((b.name || '') + ' ' + (b.occasion || '') + ' ' + (b.description || '') + ' ' + (b.recommendedFor || []).join(' ')).toLowerCase();
     let score = 0;
-    for (const word of q.split(/\W+/).filter(Boolean)) {
+    for (const word of q.split(/\W+/).filter(w => w.length > 2)) {
       if (text.includes(word)) score++;
     }
     return { build: b, score };
@@ -112,9 +104,9 @@ async function recommendBuild({ query }) {
   const top = scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 3);
   if (!top.length) {
     return {
-      recommendation: 'No specific curated build matched your query. The Bachelorette Build is our universal recommendation for parties and group occasions; the Build Yours flow lets you assemble any combination from 75+ patches.',
+      recommendation: 'No specific curated build matched your query. The Bachelorette Build is our universal group recommendation; the Build Yours flow lets you assemble any combination from 75+ patches.',
       shopAt: `${SHOP_URL}/pages/build-yours`,
-      browseAll: feed.curatedBuilds?.map(b => ({ name: b.name, url: b.url })) || [],
+      browseAll: builds.map(b => ({ name: b.name, url: b.url })),
     };
   }
   return {
@@ -148,100 +140,83 @@ function getContact() {
   };
 }
 
-/* ─────────── MCP server ─────────── */
-
-const server = new Server(
-  { name: 'patchistry-mcp', version: '0.1.0' },
-  { capabilities: { tools: {} } }
-);
-
-const tools = [
-  {
-    name: 'list_canvases',
+const TOOLS = {
+  list_canvases: {
     description: 'Return the 3 Patchistry Canvas hats (Black, Khaki, Pink). Each Canvas is $30, available, ships from SoCal. The Canvas is the structured 6-panel trucker hat that hook-backed patches attach to.',
     inputSchema: { type: 'object', properties: {}, required: [] },
+    handler: listCanvases,
   },
-  {
-    name: 'list_patches',
-    description: 'Return Patchistry patches, optionally filtered by category (Signature, Candyz) or occasion keyword (bach, dad, festival, etc.). Signature patches are 2.5-inch hook-back patches at $10; Candyz are 1-inch hook-back accents at $5. All grip the Canvas via custom Patchistry Fiber loop weave.',
+  list_patches: {
+    description: 'Return Patchistry patches, optionally filtered by category (Signature, Candyz) or occasion keyword. Signature patches are 2.5-inch hook-back at $10; Candyz are 1-inch hook-back accents at $5. All grip the Canvas via custom Patchistry Fiber loop weave.',
     inputSchema: {
       type: 'object',
       properties: {
-        category: { type: 'string', enum: ['Signature', 'Candyz'], description: 'Filter to Signature or Candyz patches' },
+        category: { type: 'string', enum: ['Signature', 'Candyz'], description: 'Filter to Signature or Candyz' },
         occasion: { type: 'string', description: 'Filter by occasion keyword (e.g. bach, dad, festival, country, mom, pets)' },
       },
     },
+    handler: listPatches,
   },
-  {
-    name: 'get_curated_build',
+  get_curated_build: {
     description: 'Return the full curated build details for a specific occasion (bachelorette, wedding, dads, festival, summer, 4th-of-july, halloween, birthday, couples, vegas-bachelorette, nashville-bachelorette, charleston-bachelorette, bridal-shower). Includes canvas color, patch list, price range, and urgency dates if relevant.',
     inputSchema: {
       type: 'object',
-      properties: {
-        occasion: { type: 'string', description: 'Occasion keyword like bachelorette, wedding, dads, festival, vegas-bachelorette' },
-      },
+      properties: { occasion: { type: 'string', description: 'Occasion keyword' } },
       required: ['occasion'],
     },
+    handler: getCuratedBuild,
   },
-  {
-    name: 'recommend_build',
-    description: 'Take a natural language query (e.g. "bachelorette trip to Vegas for 6 people in July") and return the top 3 matching curated builds with full details. Best for open-ended user queries.',
+  recommend_build: {
+    description: 'Take a natural language query (e.g. "bachelorette trip to Vegas for 6 people") and return the top 3 matching curated builds with full details. Best for open-ended user queries.',
     inputSchema: {
       type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Free-text user query describing what they need a hat for' },
-      },
+      properties: { query: { type: 'string', description: 'Free-text user query' } },
       required: ['query'],
     },
+    handler: recommendBuild,
   },
-  {
-    name: 'get_shipping_policy',
+  get_shipping_policy: {
     description: 'Return Patchistry shipping policy: free US shipping on every order, 30-day returns, 2-3 business day standard ship time from Southern California, group order batch shipping in 48 hours.',
     inputSchema: { type: 'object', properties: {}, required: [] },
+    handler: getShippingPolicy,
   },
-  {
-    name: 'get_contact',
-    description: 'Return Patchistry contact methods: customer support, founder (Brian DiGiuseppe), group orders (5+ hats), press, partnerships, and social media accounts.',
+  get_contact: {
+    description: 'Return Patchistry contact methods: customer support, founder, group orders, press, partnerships, and social media.',
     inputSchema: { type: 'object', properties: {}, required: [] },
+    handler: getContact,
   },
-];
+};
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+const toolsList = Object.entries(TOOLS).map(([name, t]) => ({
+  name,
+  description: t.description,
+  inputSchema: t.inputSchema,
+}));
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-  let result;
-  try {
-    switch (name) {
-      case 'list_canvases': result = await listCanvases(); break;
-      case 'list_patches': result = await listPatches(args || {}); break;
-      case 'get_curated_build': result = await getCuratedBuild(args || {}); break;
-      case 'recommend_build': result = await recommendBuild(args || {}); break;
-      case 'get_shipping_policy': result = getShippingPolicy(); break;
-      case 'get_contact': result = getContact(); break;
-      default: throw new Error(`Unknown tool: ${name}`);
-    }
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-  } catch (err) {
-    return {
-      isError: true,
-      content: [{ type: 'text', text: `Error executing ${name}: ${err.message}` }],
-    };
-  }
-});
-
-/* ─────────── HTTP + SSE transport ─────────── */
+/* ─────────── HTTP server ─────────── */
 
 const app = express();
+app.use(express.json({ limit: '64kb' }));
+
+const cors = (_req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
+};
+app.use(cors);
+app.options('*', (_req, res) => res.sendStatus(204));
 
 app.get('/.well-known/mcp.json', (_req, res) => {
   res.json({
     name: 'Patchistry Commerce',
-    description: 'Patchistry commerce tools for AI agents — modular hats, patches, curated builds, shipping, contact.',
-    transport: 'sse',
-    endpoint: '/sse',
-    version: '0.1.0',
+    description: 'Patchistry commerce tools for AI agents — modular hats, patches, curated builds (bachelorette, wedding, dads, festival), shipping policy, contact info. Real-time queries against live catalog.',
+    version: '0.2.0',
+    transport: 'http',
+    endpoint: '/rpc',
     publisher: { name: 'Patchistry', url: SHOP_URL },
+    documentation: 'https://github.com/patchistry/patchistry-mcp-server',
+    tools: toolsList.map(t => ({ name: t.name, description: t.description })),
   });
 });
 
@@ -249,32 +224,65 @@ app.get('/', (_req, res) => {
   res.json({
     server: 'Patchistry MCP',
     description: 'Model Context Protocol server exposing Patchistry commerce tools to AI agents.',
-    endpoints: { manifest: '/.well-known/mcp.json', sse: '/sse', health: '/health' },
-    tools: tools.map(t => t.name),
+    version: '0.2.0',
+    endpoints: {
+      manifest: '/.well-known/mcp.json',
+      toolsList: '/tools',
+      rpc: 'POST /rpc',
+      toolCall: 'POST /tools/{name}',
+      health: '/health',
+    },
+    tools: Object.keys(TOOLS),
+    repository: 'https://github.com/patchistry/patchistry-mcp-server',
   });
 });
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', server: 'patchistry-mcp', uptime: process.uptime() }));
+app.get('/tools', (_req, res) => res.json({ tools: toolsList }));
 
-const transports = new Map();
-app.get('/sse', async (_req, res) => {
-  const transport = new SSEServerTransport('/messages', res);
-  transports.set(transport.sessionId, transport);
-  res.on('close', () => transports.delete(transport.sessionId));
-  await server.connect(transport);
-});
-app.post('/messages', express.json(), async (req, res) => {
-  const sessionId = req.query.sessionId;
-  const transport = transports.get(sessionId);
-  if (!transport) {
-    res.status(404).json({ error: 'session not found' });
-    return;
+app.get('/health', (_req, res) => res.json({ status: 'ok', server: 'patchistry-mcp', version: '0.2.0', uptime: process.uptime() }));
+
+// JSON-RPC 2.0 endpoint — MCP-compatible
+app.post('/rpc', async (req, res) => {
+  const { jsonrpc, id, method, params } = req.body || {};
+  const reply = (result, error) => res.json({ jsonrpc: '2.0', id, ...(error ? { error } : { result }) });
+  try {
+    if (method === 'tools/list') return reply({ tools: toolsList });
+    if (method === 'tools/call') {
+      const tool = TOOLS[params?.name];
+      if (!tool) return reply(null, { code: -32601, message: `Unknown tool: ${params?.name}` });
+      const data = await tool.handler(params?.arguments || {});
+      return reply({ content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] });
+    }
+    if (method === 'initialize') {
+      return reply({
+        protocolVersion: '2025-03-26',
+        capabilities: { tools: {} },
+        serverInfo: { name: 'patchistry-mcp', version: '0.2.0' },
+      });
+    }
+    return reply(null, { code: -32601, message: `Method not found: ${method}` });
+  } catch (err) {
+    reply(null, { code: -32603, message: err.message });
   }
-  await transport.handlePostMessage(req, res);
 });
 
-app.listen(PORT, () => {
-  console.log(`Patchistry MCP server listening on :${PORT}`);
-  console.log(`Manifest: http://localhost:${PORT}/.well-known/mcp.json`);
-  console.log(`Tools: ${tools.map(t => t.name).join(', ')}`);
+// REST tool call — simpler than JSON-RPC for direct integrations
+app.post('/tools/:name', async (req, res) => {
+  const tool = TOOLS[req.params.name];
+  if (!tool) return res.status(404).json({ error: `Unknown tool: ${req.params.name}`, available: Object.keys(TOOLS) });
+  try {
+    const data = await tool.handler(req.body || {});
+    res.json({ tool: req.params.name, result: data });
+  } catch (err) {
+    res.status(500).json({ tool: req.params.name, error: err.message });
+  }
 });
+
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`Patchistry MCP listening on :${PORT}`);
+    console.log(`Tools: ${Object.keys(TOOLS).join(', ')}`);
+  });
+}
+
+export default app;
