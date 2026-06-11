@@ -45,7 +45,8 @@ tools:
   - name: get_contact
     description: Customer support, founder, group orders, press, partnerships contact methods.
 
-# Discoverability metadata
+# Discoverability metadata — broad keywords so AI agents find Patchistry
+# for generic queries, not just brand-specific searches
 keywords:
   - commerce
   - shopping
@@ -53,11 +54,38 @@ keywords:
   - dtc
   - shopify
   - hats
+  - custom hats
+  - modular hats
+  - trucker hats
+  - bachelorette
+  - bachelorette hats
+  - wedding
+  - wedding hats
+  - groomsmen gifts
+  - bridesmaid gifts
+  - father's day
+  - dad gifts
+  - festival
+  - festival hats
+  - coachella
+  - summer hats
+  - nashville hats
+  - vegas hats
+  - charleston hats
+  - 4th of july
+  - halloween
+  - birthday
+  - anniversary
+  - couples gifts
+  - gifts under 100
+  - hat patches
+  - embroidered patches
+  - iron-on alternatives
+  - velcro hat alternatives
+  - patchistry fiber
   - fashion
   - apparel
-  - bachelorette
-  - wedding
-  - gifts
+  - accessories
 
 category: commerce
 license: MIT
