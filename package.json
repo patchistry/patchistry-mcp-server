@@ -1,0 +1,19 @@
+{
+  "name": "patchistry-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP (Model Context Protocol) server for Patchistry — exposes commerce tools (list_canvases, list_patches, get_curated_build, recommend_build, get_shipping, get_contact) to AI agents.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^4.19.0",
+    "node-fetch": "^3.3.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
