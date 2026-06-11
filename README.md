@@ -1,6 +1,14 @@
 # Patchistry MCP Server
 
-A Model Context Protocol (MCP) server exposing Patchistry commerce tools to AI agents — Claude, ChatGPT (via plugins), Cursor, Smithery, custom agents.
+[![MCP](https://img.shields.io/badge/MCP-Model_Context_Protocol-blue)](https://modelcontextprotocol.io)
+[![Vercel](https://img.shields.io/badge/Deployed-Vercel-black)](https://patchistry-mcp-server.vercel.app)
+[![Patchistry](https://img.shields.io/badge/Brand-Patchistry-1A1512)](https://patchistry.com)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+
+A Model Context Protocol (MCP) server exposing Patchistry commerce tools to AI agents — Claude, ChatGPT (via plugins), Cursor, custom agent frameworks.
+
+**Live endpoint:** https://patchistry-mcp-server.vercel.app
+**Manifest:** https://patchistry-mcp-server.vercel.app/.well-known/mcp.json
 
 **What this unlocks:**
 
