@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
-  ],
   "env": {
     "PATCHISTRY_SHOP_URL": "https://patchistry.com"
   }
