@@ -246,6 +246,64 @@ app.get('/.well-known/mcp.json', (_req, res) => {
 });
 
 app.get('/', (_req, res) => {
+  // Serve HTML page with Vercel Analytics for tracking
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patchistry MCP Server</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      line-height: 1.6;
+      color: #333;
+    }
+    h1 { color: #000; }
+    .endpoint { 
+      background: #f5f5f5; 
+      padding: 10px; 
+      border-radius: 5px; 
+      margin: 10px 0;
+      font-family: monospace;
+    }
+    .tool { 
+      margin: 5px 0; 
+      padding: 5px;
+      background: #e8f4f8;
+      border-radius: 3px;
+    }
+    a { color: #0070f3; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>Patchistry MCP Server</h1>
+  <p>Model Context Protocol server exposing Patchistry commerce tools to AI agents.</p>
+  
+  <h2>Endpoints</h2>
+  <div class="endpoint"><a href="/.well-known/mcp.json">/.well-known/mcp.json</a> — Server manifest</div>
+  <div class="endpoint"><a href="/sse">/sse</a> — SSE transport endpoint</div>
+  <div class="endpoint"><a href="/health">/health</a> — Health check</div>
+  
+  <h2>Available Tools</h2>
+  ${tools.map(t => `<div class="tool"><strong>${t.name}</strong> — ${t.description}</div>`).join('')}
+  
+  <h2>Documentation</h2>
+  <p>Learn more about integrating this MCP server with AI agents in the <a href="https://github.com/patchistry/patchistry-mcp-server">GitHub repository</a>.</p>
+
+  <script type="module">
+    import { inject } from 'https://cdn.jsdelivr.net/npm/@vercel/analytics@1/dist/index.js';
+    inject();
+  </script>
+</body>
+</html>`);
+});
+
+app.get('/api', (_req, res) => {
   res.json({
     server: 'Patchistry MCP',
     description: 'Model Context Protocol server exposing Patchistry commerce tools to AI agents.',
