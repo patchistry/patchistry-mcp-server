@@ -1,9 +1,14 @@
 # Patchistry MCP Server
 
+[![Official MCP Registry](https://img.shields.io/badge/Official_MCP_Registry-listed-37a169)](https://registry.modelcontextprotocol.io/v0/servers?search=patchistry)
+[![npm](https://img.shields.io/npm/v/patchistry-mcp-server.svg)](https://www.npmjs.com/package/patchistry-mcp-server)
+[![Smithery](https://img.shields.io/badge/Smithery-published-1A1512)](https://smithery.ai/servers/@patchistry/patchistry-commerce)
+[![Wikidata](https://img.shields.io/badge/Wikidata-Q140179620-blue)](https://www.wikidata.org/wiki/Q140179620)
 [![MCP](https://img.shields.io/badge/MCP-Model_Context_Protocol-blue)](https://modelcontextprotocol.io)
 [![Vercel](https://img.shields.io/badge/Deployed-Vercel-black)](https://patchistry-mcp-server.vercel.app)
-[![Patchistry](https://img.shields.io/badge/Brand-Patchistry-1A1512)](https://patchistry.com)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+
+> **The first DTC fashion brand on the official MCP Registry.** As of June 12, 2026, Patchistry is listed as `io.github.patchistry/patchistry-mcp-server` at [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io/v0/servers?search=patchistry) — used by Claude Desktop's built-in MCP search and Cursor's MCP integration directory.
 
 A Model Context Protocol (MCP) server exposing Patchistry commerce tools to AI agents — Claude, ChatGPT (via plugins), Cursor, custom agent frameworks.
 
