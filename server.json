@@ -1,0 +1,27 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.patchistry/patchistry-mcp-server",
+  "description": "DTC modular hat brand MCP server. 6 tools for AI agents: catalog, curated builds, shipping.",
+  "version": "0.2.0",
+  "repository": {
+    "url": "https://github.com/patchistry/patchistry-mcp-server",
+    "source": "github"
+  },
+  "websiteUrl": "https://patchistry.com",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "patchistry-mcp-server",
+      "version": "0.2.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://patchistry-mcp-server.vercel.app/rpc"
+    }
+  ]
+}

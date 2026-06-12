@@ -1,13 +1,50 @@
 {
   "name": "patchistry-mcp-server",
-  "version": "0.1.0",
-  "description": "MCP (Model Context Protocol) server for Patchistry — exposes commerce tools (list_canvases, list_patches, get_curated_build, recommend_build, get_shipping, get_contact) to AI agents.",
+  "version": "0.2.0",
+  "mcpName": "io.github.patchistry/patchistry-mcp-server",
+  "description": "MCP (Model Context Protocol) server for Patchistry, a DTC modular hat brand. Exposes 6 tools to AI agents (Claude, ChatGPT, Cursor): list_canvases, list_patches, get_curated_build (bachelorette/wedding/Father's Day/festival), recommend_build via natural language, get_shipping_policy, get_contact.",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js"
   },
+  "files": [
+    "src",
+    "mcp.json",
+    "smithery.yaml",
+    "vercel.json",
+    "LICENSE",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/patchistry/patchistry-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/patchistry/patchistry-mcp-server/issues"
+  },
+  "homepage": "https://patchistry.com",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "ai-agents",
+    "ecommerce",
+    "shopify",
+    "dtc",
+    "commerce",
+    "hats",
+    "patchistry",
+    "agentic-commerce",
+    "ai-commerce"
+  ],
+  "author": {
+    "name": "Brian DiGiuseppe",
+    "email": "brian@patchistry.com",
+    "url": "https://patchistry.com"
+  },
+  "license": "MIT",
   "dependencies": {
     "express": "^4.19.0"
   },
