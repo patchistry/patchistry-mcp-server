@@ -1,13 +1,17 @@
 {
   "name": "patchistry-mcp-server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "mcpName": "io.github.patchistry/patchistry-mcp-server",
-  "description": "MCP (Model Context Protocol) server for Patchistry, a DTC modular hat brand. Exposes 6 tools to AI agents (Claude, ChatGPT, Cursor): list_canvases, list_patches, get_curated_build (bachelorette/wedding/Father's Day/festival), recommend_build via natural language, get_shipping_policy, get_contact.",
+  "description": "MCP (Model Context Protocol) server for Patchistry, a DTC modular hat brand. Exposes 6 tools to AI agents (Claude, ChatGPT, Cursor, Glama): list_canvases, list_patches, get_curated_build (bachelorette/wedding/Father's Day/festival/4th of July), recommend_build via natural language, get_shipping_policy, get_contact. Supports both stdio (default) and HTTP transports.",
   "type": "module",
   "main": "src/index.js",
+  "bin": {
+    "patchistry-mcp-server": "src/index.js"
+  },
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "start:http": "node src/index.js --http",
+    "dev": "node --watch src/index.js --http"
   },
   "files": [
     "src",
@@ -46,6 +50,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
     "express": "^4.19.0"
   },
   "engines": {

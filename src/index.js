@@ -1,27 +1,28 @@
+#!/usr/bin/env node
 /*
- * Patchistry MCP Server — HTTP-only (Vercel serverless friendly)
+ * Patchistry MCP Server — dual-transport
  * ────────────────────────────────────────────────────────────────────
- * Refactored to be 100% serverless-friendly:
- *   • No SSE (incompatible with Vercel Hobby tier 10s timeout)
- *   • All endpoints respond in <2s (well under serverless limits)
- *   • JSON-RPC-compatible POST /rpc endpoint for MCP protocol clients
- *   • REST POST /tools/{name} for simple direct calls
- *   • GET endpoints for manifest, tools list, health
+ * STDIO transport (default): for Claude Desktop, Cursor, Glama, Smithery,
+ *   and any MCP client that spawns the server as a child process.
+ *
+ * HTTP transport (when VERCEL=1 or PORT env set): JSON-RPC over /rpc for
+ *   serverless deployments (Vercel, Cloudflare Workers, Railway, etc.).
+ *
+ * Both transports share the same tool implementations below.
  *
  * Tools:
  *   list_canvases, list_patches, get_curated_build, recommend_build,
  *   get_shipping_policy, get_contact
  *
- * Data source: Patchistry's existing public endpoints
- *   (/products.json, /pages/agents-feed) — no auth required.
- *
- * Deploy: Vercel Hobby (free), Cloudflare Workers, Railway, Render — all work.
+ * Data source: Patchistry's public endpoints (/products.json, /pages/agents-feed) — no auth required.
  */
 
-import express from 'express';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 const SHOP_URL = process.env.PATCHISTRY_SHOP_URL || 'https://patchistry.com';
-const PORT = process.env.PORT || 3000;
+const VERSION = '0.3.0';
 
 /* ─────────── Tool implementations ─────────── */
 
@@ -193,96 +194,132 @@ const toolsList = Object.entries(TOOLS).map(([name, t]) => ({
   inputSchema: t.inputSchema,
 }));
 
-/* ─────────── HTTP server ─────────── */
+/* ─────────── MCP server (shared between transports) ─────────── */
 
-const app = express();
-app.use(express.json({ limit: '64kb' }));
+function createMcpServer() {
+  const server = new Server(
+    { name: 'patchistry-mcp', version: VERSION },
+    { capabilities: { tools: {} } }
+  );
 
-const cors = (_req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  next();
-};
-app.use(cors);
-app.options('*', (_req, res) => res.sendStatus(204));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolsList }));
 
-app.get('/.well-known/mcp.json', (_req, res) => {
-  res.json({
-    name: 'Patchistry Commerce',
-    description: 'Patchistry commerce tools for AI agents — modular hats, patches, curated builds (bachelorette, wedding, dads, festival), shipping policy, contact info. Real-time queries against live catalog.',
-    version: '0.2.0',
-    transport: 'http',
-    endpoint: '/rpc',
-    publisher: { name: 'Patchistry', url: SHOP_URL },
-    documentation: 'https://github.com/patchistry/patchistry-mcp-server',
-    tools: toolsList.map(t => ({ name: t.name, description: t.description })),
-  });
-});
-
-app.get('/', (_req, res) => {
-  res.json({
-    server: 'Patchistry MCP',
-    description: 'Model Context Protocol server exposing Patchistry commerce tools to AI agents.',
-    version: '0.2.0',
-    endpoints: {
-      manifest: '/.well-known/mcp.json',
-      toolsList: '/tools',
-      rpc: 'POST /rpc',
-      toolCall: 'POST /tools/{name}',
-      health: '/health',
-    },
-    tools: Object.keys(TOOLS),
-    repository: 'https://github.com/patchistry/patchistry-mcp-server',
-  });
-});
-
-app.get('/tools', (_req, res) => res.json({ tools: toolsList }));
-
-app.get('/health', (_req, res) => res.json({ status: 'ok', server: 'patchistry-mcp', version: '0.2.0', uptime: process.uptime() }));
-
-// JSON-RPC 2.0 endpoint — MCP-compatible
-app.post('/rpc', async (req, res) => {
-  const { jsonrpc, id, method, params } = req.body || {};
-  const reply = (result, error) => res.json({ jsonrpc: '2.0', id, ...(error ? { error } : { result }) });
-  try {
-    if (method === 'tools/list') return reply({ tools: toolsList });
-    if (method === 'tools/call') {
-      const tool = TOOLS[params?.name];
-      if (!tool) return reply(null, { code: -32601, message: `Unknown tool: ${params?.name}` });
-      const data = await tool.handler(params?.arguments || {});
-      return reply({ content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] });
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const tool = TOOLS[request.params.name];
+    if (!tool) {
+      throw new Error(`Unknown tool: ${request.params.name}. Available: ${Object.keys(TOOLS).join(', ')}`);
     }
-    if (method === 'initialize') {
-      return reply({
-        protocolVersion: '2025-03-26',
-        capabilities: { tools: {} },
-        serverInfo: { name: 'patchistry-mcp', version: '0.2.0' },
-      });
-    }
-    return reply(null, { code: -32601, message: `Method not found: ${method}` });
-  } catch (err) {
-    reply(null, { code: -32603, message: err.message });
-  }
-});
-
-// REST tool call — simpler than JSON-RPC for direct integrations
-app.post('/tools/:name', async (req, res) => {
-  const tool = TOOLS[req.params.name];
-  if (!tool) return res.status(404).json({ error: `Unknown tool: ${req.params.name}`, available: Object.keys(TOOLS) });
-  try {
-    const data = await tool.handler(req.body || {});
-    res.json({ tool: req.params.name, result: data });
-  } catch (err) {
-    res.status(500).json({ tool: req.params.name, error: err.message });
-  }
-});
-
-if (process.env.VERCEL !== '1') {
-  app.listen(PORT, () => {
-    console.log(`Patchistry MCP listening on :${PORT}`);
-    console.log(`Tools: ${Object.keys(TOOLS).join(', ')}`);
+    const data = await tool.handler(request.params.arguments || {});
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
   });
+
+  return server;
 }
 
-export default app;
+/* ─────────── Transport selection ─────────── */
+
+const useHttp = process.env.VERCEL === '1' || process.argv.includes('--http');
+
+async function runStdio() {
+  const server = createMcpServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  // Process stays alive until stdin closes.
+}
+
+async function runHttp() {
+  const express = (await import('express')).default;
+  const PORT = process.env.PORT || 3000;
+  const app = express();
+  app.use(express.json({ limit: '64kb' }));
+
+  app.use((_req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    next();
+  });
+  app.options('*', (_req, res) => res.sendStatus(204));
+
+  app.get('/.well-known/mcp.json', (_req, res) => {
+    res.json({
+      name: 'Patchistry Commerce',
+      description: 'Patchistry commerce tools for AI agents — modular hats, patches, curated builds (bachelorette, wedding, dads, festival), shipping policy, contact info. Real-time queries against live catalog.',
+      version: VERSION,
+      transport: 'http',
+      endpoint: '/rpc',
+      publisher: { name: 'Patchistry', url: SHOP_URL },
+      documentation: 'https://github.com/patchistry/patchistry-mcp-server',
+      tools: toolsList.map(t => ({ name: t.name, description: t.description })),
+    });
+  });
+
+  app.get('/', (_req, res) => {
+    res.json({
+      server: 'Patchistry MCP',
+      description: 'Model Context Protocol server exposing Patchistry commerce tools to AI agents.',
+      version: VERSION,
+      transports: ['stdio (default)', 'http (Vercel)'],
+      endpoints: { manifest: '/.well-known/mcp.json', toolsList: '/tools', rpc: 'POST /rpc', toolCall: 'POST /tools/{name}', health: '/health' },
+      tools: Object.keys(TOOLS),
+      repository: 'https://github.com/patchistry/patchistry-mcp-server',
+    });
+  });
+
+  app.get('/tools', (_req, res) => res.json({ tools: toolsList }));
+  app.get('/health', (_req, res) => res.json({ status: 'ok', server: 'patchistry-mcp', version: VERSION, uptime: process.uptime() }));
+
+  app.post('/rpc', async (req, res) => {
+    const { id, method, params } = req.body || {};
+    const reply = (result, error) => res.json({ jsonrpc: '2.0', id, ...(error ? { error } : { result }) });
+    try {
+      if (method === 'tools/list') return reply({ tools: toolsList });
+      if (method === 'tools/call') {
+        const tool = TOOLS[params?.name];
+        if (!tool) return reply(null, { code: -32601, message: `Unknown tool: ${params?.name}` });
+        const data = await tool.handler(params?.arguments || {});
+        return reply({ content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] });
+      }
+      if (method === 'initialize') {
+        return reply({
+          protocolVersion: '2025-03-26',
+          capabilities: { tools: {} },
+          serverInfo: { name: 'patchistry-mcp', version: VERSION },
+        });
+      }
+      return reply(null, { code: -32601, message: `Method not found: ${method}` });
+    } catch (err) {
+      reply(null, { code: -32603, message: err.message });
+    }
+  });
+
+  app.post('/tools/:name', async (req, res) => {
+    const tool = TOOLS[req.params.name];
+    if (!tool) return res.status(404).json({ error: `Unknown tool: ${req.params.name}`, available: Object.keys(TOOLS) });
+    try {
+      const data = await tool.handler(req.body || {});
+      res.json({ tool: req.params.name, result: data });
+    } catch (err) {
+      res.status(500).json({ tool: req.params.name, error: err.message });
+    }
+  });
+
+  if (process.env.VERCEL !== '1') {
+    app.listen(PORT, () => {
+      console.error(`Patchistry MCP (HTTP) listening on :${PORT}`);
+      console.error(`Tools: ${Object.keys(TOOLS).join(', ')}`);
+    });
+  }
+
+  return app;
+}
+
+let httpApp = null;
+if (useHttp) {
+  httpApp = await runHttp();
+} else {
+  await runStdio();
+}
+
+// Vercel needs a default export for serverless functions
+export default httpApp;
